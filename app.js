@@ -1,16 +1,29 @@
+/* ===============================
+   CONFIG
+================================ */
+const DATA_URL = "question.json";
+const STORAGE_KEY = "survey_submissions";
 const scale = [1, 2, 3, 4, 5];
 
+/* ===============================
+   DOM
+================================ */
 const container = document.getElementById("surveyContainer");
 const form = document.getElementById("surveyForm");
 const resetBtn = document.getElementById("resetBtn");
 const output = document.getElementById("output");
 
-let groups = [];
-let flat = [];
-let answers = [];
+/* ===============================
+   STATE
+================================ */
+let groups = [];      // từ JSON
+let flat = [];        // danh sách câu hỏi phẳng
+let answers = [];     // answers[i] = 1..5 hoặc null
 
-/* ===== Load JSON ===== */
-fetch("question.json")
+/* ===============================
+   LOAD QUESTIONS
+================================ */
+fetch(DATA_URL)
   .then(res => res.json())
   .then(data => {
     groups = data;
@@ -18,33 +31,44 @@ fetch("question.json")
     render();
   })
   .catch(err => {
-    console.error("❌ Không load được questions.json", err);
+    console.error("❌ Không load được question.json", err);
+    alert("Không thể tải dữ liệu câu hỏi.");
   });
 
-/* ===== Flatten data ===== */
+/* ===============================
+   BUILD FLAT LIST (STT 1..60)
+================================ */
 function buildFlat() {
   flat = [];
   let stt = 0;
 
-  groups.forEach((g, gi) => {
-    g.items.forEach(text => {
+  groups.forEach((group, gi) => {
+    group.items.forEach(text => {
       stt++;
-      flat.push({ stt, groupIndex: gi, text });
+      flat.push({
+        stt,
+        groupIndex: gi,
+        text
+      });
     });
   });
 
   answers = Array(flat.length).fill(null);
 }
 
-/* ===== Render ===== */
+/* ===============================
+   RENDER UI
+================================ */
 function render() {
   container.innerHTML = "";
 
   groups.forEach((group, gi) => {
-    const h3 = document.createElement("h3");
-    h3.textContent = group.title;
-    container.appendChild(h3);
+    // Title
+    const title = document.createElement("h3");
+    title.textContent = group.title;
+    container.appendChild(title);
 
+    // Table
     const table = document.createElement("table");
     table.className = "likert";
 
@@ -97,7 +121,9 @@ function render() {
   });
 }
 
-/* ===== Radio change ===== */
+/* ===============================
+   RADIO CHANGE (EVENT DELEGATION)
+================================ */
 container.addEventListener("change", (e) => {
   if (e.target.matches('input[type="radio"]')) {
     const idx = Number(e.target.dataset.idx);
@@ -105,27 +131,52 @@ container.addEventListener("change", (e) => {
   }
 });
 
-/* ===== Submit ===== */
+/* ===============================
+   SAVE SUBMISSION (LOCAL STORAGE)
+================================ */
+function saveSubmission(answerString) {
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+  data.push({
+    time: new Date().toISOString(),
+    answers: answerString
+  });
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/* ===============================
+   SUBMIT
+================================ */
 form.addEventListener("submit", (e) => {
   e.preventDefault();
 
+  // Validate
   const missing = answers
-    .map((v, i) => v == null ? i + 1 : null)
+    .map((v, i) => (v == null ? i + 1 : null))
     .filter(Boolean);
 
   if (missing.length) {
-    alert("Chưa chọn ở STT: " + missing.join(", "));
+    alert("Chưa chọn mức đánh giá ở STT: " + missing.join(", "));
     return;
   }
 
+  // Output
   const result = answers.join("@");
+
+  // Save to localStorage
+  saveSubmission(result);
+
+  // Show result
   output.hidden = false;
   output.textContent = result;
 
   console.log("OUTPUT:", result);
 });
 
-/* ===== Reset ===== */
+/* ===============================
+   RESET
+================================ */
 resetBtn.addEventListener("click", () => {
   answers = Array(flat.length).fill(null);
   form.reset();
